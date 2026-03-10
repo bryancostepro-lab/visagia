@@ -1,6 +1,4 @@
-# visagia
-une IA visagiste coiffure
-[visagia.html](https://github.com/user-attachments/files/25867922/visagia.html)
+[visagia (2).html](https://github.com/user-attachments/files/25868215/visagia.2.html)
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1094,10 +1092,46 @@ function renderResults(d) {
   show('results');
 }
 
-// ── API KEY PROMPT (si pas dans Next.js) ─────────────────────
-// Pour tester en local : ouvre la console et tape :
-// window.__HAIRU_KEY__ = 'sk-ant-...'
-// En production Next.js, la clé est côté serveur et ce bloc ne sert plus.
+// ── API KEY SCREEN ────────────────────────────────────────────
+(function() {
+  const stored = sessionStorage.getItem('visagia_key');
+  if (stored) { window.__HAIRU_KEY__ = stored; return; }
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;font-family:DM Sans,sans-serif;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:24px;border:1.5px solid #e8e8e8;padding:40px 32px;max-width:420px;width:100%;">
+      <div style="font-size:2.5rem;margin-bottom:16px;">✂️</div>
+      <div style="font-family:Bricolage Grotesque,sans-serif;font-size:1.5rem;font-weight:800;color:#0a0a0a;margin-bottom:8px;">Bienvenue sur ViSaGIA !</div>
+      <p style="font-size:0.9rem;color:#8a8a8a;line-height:1.6;margin-bottom:28px;">Entre ta clé API Anthropic pour démarrer.<br>Elle reste <strong style='color:#0a0a0a'>uniquement dans ton navigateur</strong>, jamais partagée.</p>
+      <label style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#8a8a8a;display:block;margin-bottom:8px;">Clé API Anthropic</label>
+      <input id="keyInput" type="password" placeholder="sk-ant-api03-..." style="width:100%;padding:13px 16px;border-radius:12px;border:1.5px solid #e8e8e8;font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none;color:#0a0a0a;background:#f5f4f0;margin-bottom:8px;">
+      <div id="keyError" style="color:#ff4d4d;font-size:0.8rem;min-height:20px;margin-bottom:12px;"></div>
+      <button id="keySubmit" style="width:100%;padding:14px;border-radius:100px;border:none;background:#0a0a0a;color:#fff;font-family:DM Sans,sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">C'est parti ✂️</button>
+      <p style="font-size:0.72rem;color:#aaa;text-align:center;margin-top:16px;">Pas de clé ? → <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#ff4d4d;">console.anthropic.com</a></p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const input = document.getElementById('keyInput');
+  const btn   = document.getElementById('keySubmit');
+  const err   = document.getElementById('keyError');
+
+  btn.addEventListener('mouseover', () => btn.style.background = '#ff4d4d');
+  btn.addEventListener('mouseout',  () => btn.style.background = '#0a0a0a');
+
+  function submit() {
+    const val = input.value.trim();
+    if (!val.startsWith('sk-ant-')) { err.textContent = '⚠️ La clé doit commencer par sk-ant-…'; return; }
+    window.__HAIRU_KEY__ = val;
+    sessionStorage.setItem('visagia_key', val);
+    overlay.remove();
+  }
+
+  btn.addEventListener('click', submit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+  input.focus();
+})();
 </script>
 </body>
 </html>
