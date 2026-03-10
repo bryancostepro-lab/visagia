@@ -727,6 +727,57 @@ input[type=file] { display: none; }
 .error-card .e-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
 .error-card .e-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 1rem; font-weight: 700; color: var(--coral); margin-bottom: 6px; }
 .error-card .e-msg { font-size: 0.85rem; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+
+/* ── GENERATED IMAGE ── */
+.gen-image-wrap {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f0f0f0;
+  margin-bottom: 16px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gen-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 16px;
+}
+.gen-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  height: 100%;
+  min-height: 200px;
+}
+.gen-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid #e8e8e8;
+  border-top-color: var(--coral);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.gen-image-label {
+  position: absolute;
+  bottom: 10px; left: 10px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 100px;
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--coral);
+  backdrop-filter: blur(8px);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 </style>
 </head>
 <body>
@@ -1031,6 +1082,63 @@ analyzeBtn.addEventListener('click', async () => {
   }
 });
 
+// ── IMAGE GENERATION via fal.ai ──────────────────────────────
+async function generateHairstyleImage(userImageB64, userMediaType, haircutPrompt, cardId) {
+  const wrap = document.getElementById('gen-wrap-' + cardId);
+  if (!wrap) return;
+  wrap.innerHTML = `<div class="gen-image-placeholder"><div class="gen-spinner"></div><span>Génération en cours…</span></div>`;
+
+  try {
+    const falKey = window.__FAL_KEY__;
+    if (!falKey) { wrap.innerHTML = '<div class="gen-image-placeholder">🔑 Clé fal.ai manquante</div>'; return; }
+
+    // Submit request to fal.ai queue
+    const submitRes = await fetch('https://queue.fal.run/fal-ai/flux/dev', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Key ' + falKey
+      },
+      body: JSON.stringify({
+        prompt: haircutPrompt,
+        image_size: 'square_hd',
+        num_inference_steps: 28,
+        guidance_scale: 3.5,
+        num_images: 1
+      })
+    });
+
+    const submitted = await submitRes.json();
+    if (!submitted.request_id) throw new Error('Soumission échouée');
+
+    const requestId = submitted.request_id;
+
+    // Poll for result
+    let result = null;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      const pollRes = await fetch('https://queue.fal.run/fal-ai/flux/dev/requests/' + requestId, {
+        headers: { 'Authorization': 'Key ' + falKey }
+      });
+      const pollData = await pollRes.json();
+      if (pollData.status === 'COMPLETED') { result = pollData; break; }
+      if (pollData.status === 'FAILED') throw new Error('Génération échouée');
+    }
+
+    if (!result) throw new Error('Timeout — réessaie !');
+
+    const imgUrl = result.images?.[0]?.url || result.output?.images?.[0]?.url;
+    if (!imgUrl) throw new Error('Pas d image retournée');
+
+    wrap.innerHTML = `
+      <img src="${imgUrl}" alt="Coupe générée" loading="lazy">
+      <div class="gen-image-label">✨ Généré par IA</div>
+    `;
+  } catch(err) {
+    wrap.innerHTML = `<div class="gen-image-placeholder">😬 ${err.message}</div>`;
+  }
+}
+
 // ── RENDER ────────────────────────────────────────────────────
 function renderResults(d) {
   const a = d.analyse;
@@ -1059,6 +1167,11 @@ function renderResults(d) {
         <div class="haircut-rank">Coupe n°${r.rang} ${r.tendance_2026==='oui'?'<span class="trend-badge">🔥 Trend 2026</span>':''}</div>
         <div class="haircut-name">${r.nom}</div>
         <div class="haircut-inspo">✨ ${r.inspiration}</div>
+
+        <div class="gen-image-wrap" id="gen-wrap-${i}">
+          <div class="gen-image-placeholder"><div class="gen-spinner"></div><span>Génération en cours…</span></div>
+        </div>
+
         <div class="haircut-grid">
           <div>
             <div class="haircut-block-label">Pourquoi ça te va</div>
@@ -1089,47 +1202,69 @@ function renderResults(d) {
 
   document.getElementById('resultsContent').innerHTML = html;
   show('results');
+
+  // Generate images for each haircut
+  d.recommandations.forEach((r, i) => {
+    const prompt = `Portrait photo, person with ${r.nom} hairstyle, ${r.inspiration} inspired, photorealistic, professional studio lighting, clean background, facing camera, high quality`;
+    generateHairstyleImage(b64, mtype, prompt, i);
+  });
 }
 
-// ── API KEY SCREEN ────────────────────────────────────────────
+// ── API KEY SCREEN (Anthropic + fal.ai) ──────────────────────
 (function() {
-  const stored = sessionStorage.getItem('visagia_key');
-  if (stored) { window.__HAIRU_KEY__ = stored; return; }
+  const storedAnthropic = sessionStorage.getItem('visagia_key');
+  const storedFal       = sessionStorage.getItem('visagia_fal_key');
+  if (storedAnthropic && storedFal) {
+    window.__HAIRU_KEY__ = storedAnthropic;
+    window.__FAL_KEY__   = storedFal;
+    return;
+  }
 
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;font-family:DM Sans,sans-serif;';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;font-family:DM Sans,sans-serif;overflow-y:auto;';
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:24px;border:1.5px solid #e8e8e8;padding:40px 32px;max-width:420px;width:100%;">
-      <div style="font-size:2.5rem;margin-bottom:16px;">✂️</div>
-      <div style="font-family:Bricolage Grotesque,sans-serif;font-size:1.5rem;font-weight:800;color:#0a0a0a;margin-bottom:8px;">Bienvenue sur ViSaGIA !</div>
-      <p style="font-size:0.9rem;color:#8a8a8a;line-height:1.6;margin-bottom:28px;">Entre ta clé API Anthropic pour démarrer.<br>Elle reste <strong style='color:#0a0a0a'>uniquement dans ton navigateur</strong>, jamais partagée.</p>
-      <label style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#8a8a8a;display:block;margin-bottom:8px;">Clé API Anthropic</label>
-      <input id="keyInput" type="password" placeholder="sk-ant-api03-..." style="width:100%;padding:13px 16px;border-radius:12px;border:1.5px solid #e8e8e8;font-family:DM Sans,sans-serif;font-size:0.88rem;outline:none;color:#0a0a0a;background:#f5f4f0;margin-bottom:8px;">
-      <div id="keyError" style="color:#ff4d4d;font-size:0.8rem;min-height:20px;margin-bottom:12px;"></div>
+    <div style="background:#fff;border-radius:24px;border:1.5px solid #e8e8e8;padding:40px 32px;max-width:440px;width:100%;">
+      <div style="font-size:2.5rem;margin-bottom:12px;">✂️</div>
+      <div style="font-family:Bricolage Grotesque,sans-serif;font-size:1.5rem;font-weight:800;color:#0a0a0a;margin-bottom:6px;">Bienvenue sur ViSaGIA !</div>
+      <p style="font-size:0.85rem;color:#8a8a8a;line-height:1.6;margin-bottom:24px;">Entre tes deux clés API pour démarrer.<br>Elles restent <strong style='color:#0a0a0a'>uniquement dans ton navigateur</strong>.</p>
+
+      <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#8a8a8a;display:block;margin-bottom:6px;">🧠 Clé Anthropic (analyse IA)</label>
+      <input id="keyAnthropic" type="password" placeholder="sk-ant-api03-..." style="width:100%;padding:12px 16px;border-radius:12px;border:1.5px solid #e8e8e8;font-family:DM Sans,sans-serif;font-size:0.85rem;outline:none;color:#0a0a0a;background:#f5f4f0;margin-bottom:6px;">
+      <p style="font-size:0.7rem;color:#aaa;margin-bottom:18px;">→ <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#ff4d4d;">console.anthropic.com</a></p>
+
+      <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#8a8a8a;display:block;margin-bottom:6px;">🎨 Clé fal.ai (génération photo)</label>
+      <input id="keyFal" type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:xxxx" style="width:100%;padding:12px 16px;border-radius:12px;border:1.5px solid #e8e8e8;font-family:DM Sans,sans-serif;font-size:0.85rem;outline:none;color:#0a0a0a;background:#f5f4f0;margin-bottom:6px;">
+      <p style="font-size:0.7rem;color:#aaa;margin-bottom:20px;">→ <a href="https://fal.ai/dashboard/keys" target="_blank" style="color:#ff4d4d;">fal.ai/dashboard/keys</a></p>
+
+      <div id="keyError" style="color:#ff4d4d;font-size:0.8rem;min-height:16px;margin-bottom:12px;"></div>
       <button id="keySubmit" style="width:100%;padding:14px;border-radius:100px;border:none;background:#0a0a0a;color:#fff;font-family:DM Sans,sans-serif;font-size:0.92rem;font-weight:700;cursor:pointer;">C'est parti ✂️</button>
-      <p style="font-size:0.72rem;color:#aaa;text-align:center;margin-top:16px;">Pas de clé ? → <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#ff4d4d;">console.anthropic.com</a></p>
     </div>
   `;
   document.body.appendChild(overlay);
 
-  const input = document.getElementById('keyInput');
-  const btn   = document.getElementById('keySubmit');
-  const err   = document.getElementById('keyError');
+  const inputA = document.getElementById('keyAnthropic');
+  const inputF = document.getElementById('keyFal');
+  const btn    = document.getElementById('keySubmit');
+  const err    = document.getElementById('keyError');
 
   btn.addEventListener('mouseover', () => btn.style.background = '#ff4d4d');
   btn.addEventListener('mouseout',  () => btn.style.background = '#0a0a0a');
 
   function submit() {
-    const val = input.value.trim();
-    if (!val.startsWith('sk-ant-')) { err.textContent = '⚠️ La clé doit commencer par sk-ant-…'; return; }
-    window.__HAIRU_KEY__ = val;
-    sessionStorage.setItem('visagia_key', val);
+    const valA = inputA.value.trim();
+    const valF = inputF.value.trim();
+    if (!valA.startsWith('sk-ant-')) { err.textContent = '⚠️ Clé Anthropic invalide (doit commencer par sk-ant-)'; return; }
+    if (!valF) { err.textContent = '⚠️ Entre ta clé fal.ai'; return; }
+    window.__HAIRU_KEY__ = valA;
+    window.__FAL_KEY__   = valF;
+    sessionStorage.setItem('visagia_key',     valA);
+    sessionStorage.setItem('visagia_fal_key', valF);
     overlay.remove();
   }
 
   btn.addEventListener('click', submit);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
-  input.focus();
+  [inputA, inputF].forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); }));
+  inputA.focus();
 })();
 </script>
 </body>
