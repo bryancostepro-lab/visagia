@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ViSaGiA — L'IA pour couper tes cheveux et doutes !</title>
+<title>IMAGINHAIR — L'IA qui imagine ta prochaine coupe !</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -788,7 +788,7 @@ input[type=file] { display: none; }
     <div class="logo-wrap">
       <div class="logo-icon">✂️</div>
       <div>
-        <div class="logo-text">ViSaG<span class="ia">IA</span></div>
+        <div class="logo-text">IMAGIN<span class="ia">HAIR</span></div>
       </div>
     </div>
     <div class="beta-pill">✨ Bêta</div>
@@ -1212,8 +1212,8 @@ function renderResults(d) {
 
 // ── API KEY SCREEN (Anthropic + fal.ai) ──────────────────────
 (function() {
-  const storedAnthropic = sessionStorage.getItem('visagia_key');
-  const storedFal       = sessionStorage.getItem('visagia_fal_key');
+  const storedAnthropic = sessionStorage.getItem('imaginhair_key');
+  const storedFal       = sessionStorage.getItem('imaginhair_fal_key');
   if (storedAnthropic && storedFal) {
     window.__HAIRU_KEY__ = storedAnthropic;
     window.__FAL_KEY__   = storedFal;
@@ -1225,7 +1225,7 @@ function renderResults(d) {
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:24px;border:1.5px solid #e8e8e8;padding:40px 32px;max-width:440px;width:100%;">
       <div style="font-size:2.5rem;margin-bottom:12px;">✂️</div>
-      <div style="font-family:Bricolage Grotesque,sans-serif;font-size:1.5rem;font-weight:800;color:#0a0a0a;margin-bottom:6px;">Bienvenue sur ViSaGIA !</div>
+      <div style="font-family:Bricolage Grotesque,sans-serif;font-size:1.5rem;font-weight:800;color:#0a0a0a;margin-bottom:6px;">Bienvenue sur IMAGINHAIR !</div>
       <p style="font-size:0.85rem;color:#8a8a8a;line-height:1.6;margin-bottom:24px;">Entre tes deux clés API pour démarrer.<br>Elles restent <strong style='color:#0a0a0a'>uniquement dans ton navigateur</strong>.</p>
 
       <label style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#8a8a8a;display:block;margin-bottom:6px;">🧠 Clé Anthropic (analyse IA)</label>
@@ -1257,8 +1257,8 @@ function renderResults(d) {
     if (!valF) { err.textContent = '⚠️ Entre ta clé fal.ai'; return; }
     window.__HAIRU_KEY__ = valA;
     window.__FAL_KEY__   = valF;
-    sessionStorage.setItem('visagia_key',     valA);
-    sessionStorage.setItem('visagia_fal_key', valF);
+    sessionStorage.setItem('imaginhair_key',     valA);
+    sessionStorage.setItem('imaginhair_fal_key', valF);
     overlay.remove();
   }
 
