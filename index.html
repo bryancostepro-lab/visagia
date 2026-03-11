@@ -1069,7 +1069,25 @@ analyzeBtn.addEventListener('click', async () => {
     let json = raw.replace(/```json|```/g,'').trim();
     const s = json.indexOf('{'), e = json.lastIndexOf('}');
     if (s !== -1) json = json.slice(s, e+1);
-    const parsed = JSON.parse(json);
+    // Fix common JSON issues: smart quotes, newlines inside strings
+    json = json
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/
+/g, ' ')
+      .replace(/
+/g, ' ')
+      .replace(/([^\])\([^"\/bfnrtu])/g, '$1\\$2');
+    let parsed;
+    try {
+      parsed = JSON.parse(json);
+    } catch(e1) {
+      // Try to extract just valid JSON more aggressively
+      const match = json.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Réponse IA invalide — réessaie !');
+      try { parsed = JSON.parse(match[0]); }
+      catch(e2) { throw new Error('Réessaie — la réponse IA était malformée'); }
+    }
 
     doneSteps();
     renderResults(parsed);
